@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy to Amazon EC2
 
 on:
   push:
@@ -7,25 +7,41 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+     - name: Checkout code
+       uses: actions/checkout@v2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '16'
+     - name: Set up Node
+       uses: actions/setup-node@v2
+       with:
+          node-version: '18.x'
+     - name: Install dependencies
 
-      - name: Download from GitHub
-        run: git clone https://github.com/ashish9333/day-2.git
+       run: npm install -g yarn
 
-      - name: Navigate to directory
-        run: cd Deploy-NestJS-helloWorld
+     - name: EC2 update
+       env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          KEY_PATH: ${{ secrets.KEY_PATH }}
+       run: |
+           sudo apt-get update -y
+           sudo apt-get install -y sshpass
+           echo "${{ secrets.KEY_PATH }}" > key.pem
+           chmod 600 key.pem
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run tests
-        run: npm run start
+     - name: SSH and Deploy to EC2
+       env:
+         EC2_USER: ${{ secrets.EC2_USER }}
+         EC2_HOST: ${{ secrets.EC2_HOST }}
+         KEY_PATH: ${{ secrets.KEY_PATH }}
+       run: |
+           ssh -i key.pem -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'EOF'
+           cd /home/ubuntu/srv/Strapi_app/Strapi_let
+           git pull
+           yarn install
+           yarn build
+           pm2 start npm --name "Strapi" -- run start
+           EOF
